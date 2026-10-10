@@ -1,8 +1,8 @@
-"""千问客户端：阿里云百炼平台的 OpenAI 兼容接口。
+"""DeepSeek 客户端：OpenAI 兼容接口。
 
 用法：
-    1. 在百炼控制台创建 API-KEY（bailian.console.aliyun.com）
-    2. export DASHSCOPE_API_KEY=sk-xxx，或在仓库根目录写入 .env（已 gitignore）
+    1. 在 DeepSeek 开放平台创建 API key（platform.deepseek.com）
+    2. export DEEPSEEK_API_KEY=sk-xxx，或写入仓库根目录 .env（已 gitignore）
     3. client = default_client()
 
 注意：只发送合成数据，key 永不进入代码与 git 历史。
@@ -14,16 +14,16 @@ import os
 
 from .validate import LLMClient
 
-BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+BASE_URL = "https://api.deepseek.com/v1"
 
 
-class QwenClient:
-    def __init__(self, model: str = "qwen-plus", api_key: str | None = None):
+class DeepSeekClient:
+    def __init__(self, model: str = "deepseek-chat", api_key: str | None = None):
         self.model = model
-        key = api_key or os.environ.get("DASHSCOPE_API_KEY")
+        key = api_key or os.environ.get("DEEPSEEK_API_KEY")
         if not key:
             raise RuntimeError(
-                "缺少 DASHSCOPE_API_KEY：请 export DASHSCOPE_API_KEY=sk-xxx "
+                "缺少 DEEPSEEK_API_KEY：请 export DEEPSEEK_API_KEY=sk-xxx "
                 "或写入仓库根目录 .env（已在 .gitignore 中）"
             )
         from openai import OpenAI  # 延迟导入：没装 openai 包时只在真正调用时报错
@@ -40,4 +40,4 @@ class QwenClient:
 
 
 def default_client() -> LLMClient:
-    return QwenClient()
+    return DeepSeekClient()

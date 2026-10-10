@@ -53,7 +53,7 @@ uv run python -m risklist_kg_miner.validate
 ```
 第 1 层 规则：多源动作一致 + 机构是"全称/简称"关系（后缀匹配）
              → MERGED，取最长机构名，零 LLM 成本
-第 2 层 LLM：动作矛盾（任命 vs 免去）→ 把候选清单发给千问，
+第 2 层 LLM：动作矛盾（任命 vs 免去）→ 把候选清单发给 DeepSeek，
              让它输出 {"latest": 候选编号, "reason": "..."} 结构化裁决
 第 3 层 降级：LLM 不可用/输出非法 → 保守结论（免去优先）+ CONFLICT 标记，
              转人工复核队列
@@ -62,7 +62,7 @@ uv run python -m risklist_kg_miner.validate
 对应公司 platform 的设计（network-agent-ts 精读笔记）：
 **确定性问题规则先行，LLM 只做语义判断；冲突取更保守的一方。**
 `LLMClient` 是一个 Protocol（接口），测试用 `FakeLLM` 塞 canned 回复，
-生产用 `qwen.py` 里的 `QwenClient`——这正是 D3"LLM 可替换可降级"的结构。
+生产用 `deepseek.py` 里的 `DeepSeekClient`——这正是 D3"LLM 可替换可降级"的结构。
 
 ## 步骤 3：测试钉死的业务承诺
 
@@ -79,26 +79,23 @@ uv run pytest tests/test_validate.py -v
 | test_llm_failure_falls_back_to_conservative | LLM 返回垃圾也不炸，保守降级 |
 | test_org_matches_suffix_rule | 后缀匹配本身的行为 |
 
-## 步骤 4（动手 A，推荐）：接上真千问
+## 步骤 4（动手 A，推荐）：接上真 DeepSeek
 
-1. 打开百炼控制台 `bailian.console.aliyun.com` → 右上角头像 → API-KEY →
-   创建我的 API-KEY，复制 `sk-` 开头的密钥。
-2. **不要把 key 发给任何人/任何聊天**。在仓库根目录写入 `.env`
-   （已在 `.gitignore`，永远不会被提交）：
-
-   ```bash
-   echo 'DASHSCOPE_API_KEY=sk-你的key' > .env
-   ```
-
-3. 跑一次真实裁决（只发送合成数据，预计花费 < 0.01 元）。`uv run --env-file .env`
-   会把 .env 里的变量临时注入进程，不需要装任何 dotenv 包：
+1. key 在 DeepSeek 开放平台创建（`platform.deepseek.com` → API keys），
+   形如 `sk-` 开头，按 token 计费。
+2. **不要把 key 发给任何人/任何聊天**。保存方式二选一：
+   - 持久化（推荐）：把 `export DEEPSEEK_API_KEY=sk-你的key` 追加到 `~/.zshrc`；
+   - 或写入仓库根目录 `.env`（已在 `.gitignore`，永远不会被提交）：
+     `echo 'DEEPSEEK_API_KEY=sk-你的key' > .env`
+3. 跑一次真实裁决（只发送合成数据，DeepSeek 计费下本次调用约几分钱）。
+   `.env` 方式用 `uv run --env-file .env` 把变量临时注入进程，不装任何 dotenv 包：
 
    ```bash
    uv run --env-file .env python -c "
    from risklist_kg_miner.extract import extract_appointments
    from risklist_kg_miner.collect import html_to_text
    from risklist_kg_miner.validate import merge
-   from risklist_kg_miner.qwen import default_client
+   from risklist_kg_miner.deepseek import default_client
    from pathlib import Path
 
    s = Path('data/samples')
@@ -111,7 +108,7 @@ uv run pytest tests/test_validate.py -v
    ```
 
    预期：`merged 免去 <- LLM 判定以notice-006为准：...`（理由由模型生成）。
-   如果报错 `缺少 DASHSCOPE_API_KEY` 或网络超时——这正是降级路径存在的意义，
+   如果报错 `缺少 DEEPSEEK_API_KEY` 或网络超时——这正是降级路径存在的意义，
    demo 里的 `[WARN]` 分支就是为它准备的。
 
 ## 步骤 5（动手 B）：给冲突种子里一条测试

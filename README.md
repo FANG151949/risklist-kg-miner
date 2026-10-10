@@ -6,7 +6,7 @@
 
 - 多 agent 编排：coordinator + 采集 / 校验 / 建图 / 评分专职 agent（手写编排，不依赖 LangChain）
 - 规则引擎：确定性纯函数规则优先，LLM 兜底，冲突取更保守结论
-- LLM：阿里云百炼千问（OpenAI 兼容接口），`DASHSCOPE_API_KEY` 从 `.env` 读取（已 gitignore），只发送合成数据
+- LLM：DeepSeek（OpenAI 兼容接口），`DEEPSEEK_API_KEY` 从环境变量/`.env` 读取（已 gitignore），只发送合成数据；经 `LLMClient` 协议可切换任意兼容模型
 - RAG：BM25 + 向量 + 知识图谱三路召回，min-max 归一化 + 加权 RRF 融合，图谱超时软降级
 - 图谱：Neo4j 沉淀 人-机构-职务-事件 关系链，支持一人多职、任免历史追踪
 
