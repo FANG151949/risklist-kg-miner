@@ -37,3 +37,7 @@ def test_narrative_layout_yields_nothing_yet():
     # 版式 C 是叙述句 "经研究，某某同志任……"，同样 0 条。
     records = extract_appointments(_collect("notice-004.html"))
     assert records == []
+
+def test_your_layout_yields_nothing_yet():
+    records = extract_appointments(_collect("notice-005.html"))
+    assert records == []
