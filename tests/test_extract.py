@@ -9,7 +9,7 @@ def test_extract_sample_notice():
     text = SAMPLE.read_text(encoding="utf-8")
     records = extract_appointments(text)
 
-    assert len(records) == 5
+    assert len(records) == 6
     first = records[0]
     assert first.action == "任命"
     assert first.person == "陈志远"
@@ -23,7 +23,7 @@ def test_extract_line_numbers_track_original_text():
     text = SAMPLE.read_text(encoding="utf-8")
     records = extract_appointments(text)
 
-    assert [r.line_no for r in records] == [11, 12, 13, 14, 15]
+    assert [r.line_no for r in records] == [11, 12, 13, 14, 15, 16]
 
 
 def test_short_org_name_kept_as_is():
