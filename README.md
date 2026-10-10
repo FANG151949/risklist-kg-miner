@@ -6,6 +6,7 @@
 
 - 多 agent 编排：coordinator + 采集 / 校验 / 建图 / 评分专职 agent（手写编排，不依赖 LangChain）
 - 规则引擎：确定性纯函数规则优先，LLM 兜底，冲突取更保守结论
+- LLM：阿里云百炼千问（OpenAI 兼容接口），`DASHSCOPE_API_KEY` 从 `.env` 读取（已 gitignore），只发送合成数据
 - RAG：BM25 + 向量 + 知识图谱三路召回，min-max 归一化 + 加权 RRF 融合，图谱超时软降级
 - 图谱：Neo4j 沉淀 人-机构-职务-事件 关系链，支持一人多职、任免历史追踪
 
@@ -19,7 +20,7 @@
 |---|---|---|
 | v0.1 | 人工读任免公示太慢 | 公告文本 → 规则抽取 人名/机构/职务/时间 + 行号证据 |
 | v0.2 | 来源是异构 HTML | collector agent + reading loop |
-| v0.3 | 多来源记录冲突 | validator agent：规则优先 + LLM 兜底 + 取保守结论 |
+| v0.3 ✅ | 多来源记录冲突 | validator agent：规则优先 + LLM 兜底 + 取保守结论 |
 | v0.4 | 关系查询效率 | Neo4j 图谱 + LightRAG 图谱层 |
 | v0.5 | 自然语言检索 | 三路召回 RAG（BM25+向量+图谱，RRF 融合） |
 | v0.6 | 名单分级 | 风险等级 scorer + 人工复核队列 |

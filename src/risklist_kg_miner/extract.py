@@ -27,6 +27,7 @@ class AppointmentRecord:
     line_no: int
     raw: str
     effective_date: str | None = None
+    source: str = ""
 
 
 def _effective_date(text: str) -> str | None:
@@ -36,7 +37,7 @@ def _effective_date(text: str) -> str | None:
     return f"{m.group('y')}-{int(m.group('m')):02d}-{int(m.group('d')):02d}"
 
 
-def extract_appointments(text: str) -> list[AppointmentRecord]:
+def extract_appointments(text: str, source: str = "") -> list[AppointmentRecord]:
     effective = _effective_date(text)
     records = []
     for no, line in enumerate(text.splitlines(), start=1):
@@ -54,6 +55,7 @@ def extract_appointments(text: str) -> list[AppointmentRecord]:
                     line_no=no,
                     raw=s,
                     effective_date=effective,
+                    source=source,
                 )
             )
     return records
