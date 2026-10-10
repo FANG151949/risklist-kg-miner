@@ -1,10 +1,15 @@
-from risklist_kg_miner.extract import AppointmentRecord
+from pathlib import Path
+
+from risklist_kg_miner.collect import html_to_text
+from risklist_kg_miner.extract import AppointmentRecord, extract_appointments
 from risklist_kg_miner.validate import (
     FakeLLM,
     MergeStatus,
     _org_matches,
     merge,
 )
+
+SAMPLES = Path(__file__).parent.parent / "data" / "samples"
 
 
 def rec(action, person, org, position, line_no, source):
@@ -77,3 +82,23 @@ def test_org_matches_suffix_rule():
     assert _org_matches("河州市卫生健康委员会", "市卫生健康委员会")
     assert _org_matches("市卫生健康委员会", "河州市卫生健康委员会")
     assert not _org_matches("河州市发展和改革委员会", "市卫生健康委员会")
+
+
+def test_real_samples_chen_conflict_goes_to_review():
+    # 陈志远在 notice-001 被任命、notice-006 被免去；无 LLM 时冲突不猜，
+    # 取保守结论（免去优先）并转人工复核。
+    r1 = extract_appointments(
+        (SAMPLES / "notice-001.txt").read_text(encoding="utf-8"), source="notice-001"
+    )
+    r6 = extract_appointments(
+        html_to_text((SAMPLES / "notice-006.html").read_text(encoding="utf-8")),
+        source="notice-006",
+    )
+    chen = [r for r in r1 + r6 if r.person == "陈志远"]
+
+    results = merge(chen)
+
+    assert len(results) == 1
+    assert results[0].status == MergeStatus.CONFLICT
+    assert results[0].record.action == "免去"
+    assert results[0].sources == ("notice-001", "notice-006")
