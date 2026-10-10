@@ -21,7 +21,7 @@
 | v0.1 | 人工读任免公示太慢 | 公告文本 → 规则抽取 人名/机构/职务/时间 + 行号证据 |
 | v0.2 | 来源是异构 HTML | collector agent + reading loop |
 | v0.3 ✅ | 多来源记录冲突 | validator agent：规则优先 + LLM 兜底 + 取保守结论 |
-| v0.4 | 关系查询效率 | Neo4j 图谱 + LightRAG 图谱层 |
+| v0.4 ✅ | 关系查询效率 | Neo4j：事件流水（留痕）+ 任职状态（查询）双写，MERGE 幂等落库 |
 | v0.5 | 自然语言检索 | 三路召回 RAG（BM25+向量+图谱，RRF 融合） |
 | v0.6 | 名单分级 | 风险等级 scorer + 人工复核队列 |
 | v0.7 | 可信度证明 | 合成标注集 + precision/recall + 两路 vs 三路消融 |
