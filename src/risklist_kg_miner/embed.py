@@ -39,9 +39,9 @@ class DashScopeEmbedding:
 
     def embed(self, texts: list[str]) -> list[dict[int, float]]:
         out: list[dict[int, float]] = []
-        for i in range(0, len(texts), 25):  # 百炼单批上限 25 条
+        for i in range(0, len(texts), 10):  # text-embedding-v3 单批上限 10 条
             resp = self._client.embeddings.create(
-                model=self.model, input=texts[i : i + 25]
+                model=self.model, input=texts[i : i + 10]
             )
             out += [{j: v for j, v in enumerate(d.embedding)} for d in resp.data]
         return out

@@ -90,3 +90,15 @@ def test_search_end_to_end_offline():
     ids = [cid for cid, _ in report.fused]
     assert "notice-001#L1" in ids and "notice-006#L1" in ids
     assert "notice-002#L1" not in ids[:2]
+
+
+def test_wu_removal_query_ranks_evidence_first():
+    # 教程五步骤 6：问"吴国强的免职机构"，证据行（notice-004 的免职句）
+    # 必须排融合第一——检索承诺，不是"大概能找到"。
+    chunks = build_chunks([
+        ("notice-004", "经研究，周晓梅同志任河州市交通运输局副局长，试用期一年。\n免去吴国强同志的市公路管理局局长职务。"),
+        ("notice-001", "任命 陈志远 为 河州市发展和改革委员会副主任；"),
+    ])
+    links = [GraphLink("吴国强", "notice-004"), GraphLink("陈志远", "notice-001")]
+    report = search("吴国强的免职机构", chunks, graph_links=links)
+    assert report.fused[0][0] == "notice-004#L2"
