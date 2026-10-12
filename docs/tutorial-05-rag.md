@@ -110,6 +110,92 @@ uv run python -m risklist_kg_miner.rag
 第 3），RRF 分数最高——**多路共识压过单路冠军**。chunk id 与 Event 同款
 "来源#L行号"，检索结果直接反查证据行（v0.1 行号承诺的复利）。
 
+## 步骤 4b：RRF 融合手算全程（以真实语料为例）
+
+查询：`河州市发展和改革委员会的副主任`。三路各回 top-10（名次如下）：
+
+| 名次 | bm25 路 (0.4) | 向量路 (0.4) | 图谱路 (0.2) |
+|---|---|---|---|
+| 1 | 001#L11 陈志远任命行 | 001#L11 | 001#L11 |
+| 2 | 006#L3 陈志远免职行 | 006#L3 | 006#L3 |
+| 3 | 003#L3 孙丽华表格行 | 003#L3 | 001#L5（标题行） |
+| 4 | 003#L4 郑海涛表格行 | 001#L21 | 001#L6 |
+| 5 | 001#L15 | 003#L4 | 001#L8 |
+| 6 | 001#L21 | 006#L2 | 001#L9 |
+| 7 | 006#L2 | 001#L5 | 001#L12 |
+| 8 | 001#L5（标题行） | 004#L1 | 001#L13 |
+| 9 | 004#L1 | 005#L1 | 001#L14 |
+| 10 | 005#L1 | 001#L12 | 001#L15 |
+
+对每个候选文档套公式 `score = Σ 权重/(60+名次)`（没进某路 top-10 该路贡献 0）：
+
+```
+001#L11 = 0.4/61 + 0.4/61 + 0.2/61 = 0.01639   三路全部第1
+006#L3  = 0.4/62 + 0.4/62 + 0.2/62 = 0.01613   三路全部第2
+001#L5  = 0.4/68 + 0.4/67 + 0.2/63 = 0.01503   三路都命中，但名次都靠后
+003#L3  = 0.4/63 + 0.4/63        = 0.01270   只有两路，缺图谱路
+```
+
+融合 top-8（实测）：
+
+| 融合分 | 文档 | 说明 |
+|---|---|---|
+| 0.01639 | 001#L11 | 任命行，三路共识第一 |
+| 0.01613 | 006#L3 | 免职行，三路共识第二 |
+| 0.01503 | 001#L5 | **逆袭**：单路名次全是 7-8，但三路全命中 |
+| 0.01270 | 003#L3 | 单路第 3 ×2，被上面三路共识压过 |
+| ... | ... | 后 4 名同理 |
+
+两个看点：
+
+1. **001#L5（公告标题）逆袭 003#L3**：前者每路只排第 7-8，后者两路排第 3——
+   但 L5 三路全命中累加 0.01503 > L5 缺图谱路只有 0.01270。RRF 奖励
+   **跨方法共识**：一个文档如果"关键词匹配、语义相似、图关联"三种视角
+   都觉得沾边，它大概率真的相关，哪怕每种视角都不突出。
+2. **量纲免疫**：图谱路分数只有 1.0/0.0 两档（跳数式打分），bm25 是
+   IDF 加权词频，向量是余弦——直接加权平均根本没法比；RRF 只看名次，
+   三套量纲完全不同的分数在同一公式里公平竞争。
+
+复现这个手算（含每文档的逐路拆项）：
+
+```bash
+uv run python - <<'EOF'
+from pathlib import Path
+from risklist_kg_miner.collect import html_to_text
+from risklist_kg_miner.rag import (BM25, GraphLink, HashBigramEmbedding, build_chunks,
+                                   vector_recall, graph_recall, DEFAULT_WEIGHTS, LINKS_CYPHER)
+from risklist_kg_miner.neo4j_store import Neo4jStore
+
+samples = Path("data/samples")
+corpus = [("notice-001", (samples/"notice-001.txt").read_text(encoding="utf-8"))]
+for n in ("notice-002","notice-003","notice-004","notice-005","notice-006"):
+    corpus.append((n, html_to_text((samples/f"{n}.html").read_text(encoding="utf-8"))))
+chunks = build_chunks(corpus)
+s = Neo4jStore()
+links = [GraphLink(r["entity"], r["source"]) for r in s.query(LINKS_CYPHER)]
+s.close()
+
+q = "河州市发展和改革委员会的副主任"
+routes = {"bm25": BM25(chunks).search(q),
+          "vector": vector_recall(q, chunks, HashBigramEmbedding()),
+          "graph": graph_recall(q, links, chunks)}
+rank_of = {r: {cid: i for i, (cid, _) in enumerate(p, 1)} for r, p in routes.items()}
+ids = []
+for p in routes.values():
+    ids += [c for c, _ in p if c not in ids]
+rows = []
+for c in ids:
+    terms = [f"{w}/(60+{rank_of[r][c]})" for r, w in DEFAULT_WEIGHTS.items() if c in rank_of[r]]
+    total = sum(w/(60+rank_of[r][c]) for r, w in DEFAULT_WEIGHTS.items() if c in rank_of[r])
+    rows.append((total, c, terms))
+for t, c, terms in sorted(rows, reverse=True)[:8]:
+    print(f"{t:.5f}  {c:<16} = " + " + ".join(terms))
+EOF
+```
+
+（向量路未配百炼 key 时用离线哈希兜底，名次与上表一致；配了真 embedding
+向量路名次可能变化——那正是步骤 5 要观察的。）
+
 ## 步骤 5（动手 A，推荐）：接上真向量路
 
 哈希兜底是词袋子，和 BM25 高度同质；要看语义召回的真实威力需配百炼：
