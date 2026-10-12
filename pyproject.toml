@@ -1,12 +1,15 @@
 [project]
 name = "risklist-kg-miner"
-version = "0.1.0"
-description = "高风险人员名单挖掘与知识图谱系统：自动化采集 + 规则初筛 + LLM校验 + 图谱沉淀 + 三路召回检索"
+version = "0.8.0"
+description = "高风险人员名单挖掘与知识图谱系统：自动化采集 + 规则初筛 + LLM校验 + 图谱沉淀 + 三路召回检索 + 精排"
 requires-python = ">=3.11"
 dependencies = [
     "neo4j>=6.4.0",
     "openai>=3.28.0",
 ]
+
+[project.scripts]
+risklist-kg-miner = "risklist_kg_miner.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]

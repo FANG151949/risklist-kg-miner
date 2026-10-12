@@ -76,17 +76,20 @@ def _adjudicate(records: list[AppointmentRecord], llm: LLMClient) -> MergeResult
         '{"latest": 候选编号, "reason": "一句话理由"}\n'
         f"{candidates}"
     )
-    try:
-        data = json.loads(llm.complete(prompt))
-        chosen = records[int(data["latest"]) - 1]
-        return MergeResult(
-            record=chosen,
-            status=MergeStatus.MERGED,
-            note=f"LLM 判定以{_tag(chosen)}为准：{data['reason']}",
-            sources=tuple(_tag(r) for r in records),
-        )
-    except Exception:
-        return _conservative_fallback(records)
+    # v0.8 失败重试：网络抖动/坏输出重试一次，两次都失败才走保守回退
+    for _ in range(2):
+        try:
+            data = json.loads(llm.complete(prompt))
+            chosen = records[int(data["latest"]) - 1]
+            return MergeResult(
+                record=chosen,
+                status=MergeStatus.MERGED,
+                note=f"LLM 判定以{_tag(chosen)}为准：{data['reason']}",
+                sources=tuple(_tag(r) for r in records),
+            )
+        except Exception:
+            continue
+    return _conservative_fallback(records)
 
 
 def merge(

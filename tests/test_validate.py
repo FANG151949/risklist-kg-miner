@@ -78,6 +78,28 @@ def test_llm_failure_falls_back_to_conservative():
     assert results[0].record.action == "免去"
 
 
+def test_llm_retries_once_before_fallback():
+    # v0.8 失败重试：第一次坏输出、第二次正常 -> 用 LLM 结论；
+    # 两次都失败才走保守回退。
+    class FlakyLLM:
+        def __init__(self):
+            self.prompts = []
+            self.calls = 0
+
+        def complete(self, prompt):
+            self.prompts.append(prompt)
+            self.calls += 1
+            if self.calls == 1:
+                return "服务繁忙，请稍后再试"
+            return '{"latest": 2, "reason": "notice-006 日期更新"}'
+
+    llm = FlakyLLM()
+    results = merge([CHEN_APPOINT, CHEN_REMOVE], llm=llm)
+    assert results[0].status == MergeStatus.MERGED
+    assert results[0].record.source == "notice-006"
+    assert llm.calls == 2
+
+
 def test_org_matches_suffix_rule():
     assert _org_matches("河州市卫生健康委员会", "市卫生健康委员会")
     assert _org_matches("市卫生健康委员会", "河州市卫生健康委员会")

@@ -66,12 +66,13 @@ def eval_retrieval(
     embedder,
     weights: dict[str, float],
     top_k: int = 8,
+    reranker=None,
 ) -> RetrievalMetrics:
     recalls, precs, rrs, misses_all = [], [], [], []
     for item in queries:
         report = search(
             item["query"], chunks, embedder=embedder,
-            graph_links=links, weights=weights, top_k=top_k,
+            graph_links=links, weights=weights, top_k=top_k, reranker=reranker,
         )
         retrieved = [cid for cid, _ in report.fused]
         relevant = set(item["relevant"])
@@ -117,23 +118,33 @@ def _demo() -> None:
     three_way_w = {"bm25": 0.4, "vector": 0.4, "graph": 0.2}
     hash_emb = HashBigramEmbedding()
     live = bool(os.environ.get("DASHSCOPE_API_KEY"))
+    real_emb = reranker = None
     if live:
         from .embed import DashScopeEmbedding
+        from .rerank import DashScopeRerank
+
         real_emb = DashScopeEmbedding()
+        reranker = DashScopeRerank()
 
     print("\n== 检索层消融（top-8） ==")
     print(f"{'配置':<28}{'recall@8':>10}{'precision@8':>13}{'MRR':>8}")
-    for label, emb, ls, w in [
-        ("两路·离线哈希向量", hash_emb, None, two_way_w),
-        ("三路·离线哈希+图谱", hash_emb, links, three_way_w),
-        *([("两路·百炼真嵌入", real_emb, None, two_way_w),
-           ("三路·百炼真嵌入+图谱", real_emb, links, three_way_w)] if live else []),
-    ]:
-        m = eval_retrieval(truth["queries"], chunks, ls, emb, w)
+    rows = [
+        ("两路·离线哈希向量", hash_emb, None, two_way_w, None),
+        ("三路·离线哈希+图谱", hash_emb, links, three_way_w, None),
+    ]
+    if live:
+        rows += [
+            ("两路·百炼真嵌入", real_emb, None, two_way_w, None),
+            ("三路·百炼真嵌入+图谱", real_emb, links, three_way_w, None),
+            # 精排行：RRF top-20 池经 gte-rerank 重排后取 top-8
+            ("三路·真嵌入+图谱+精排", real_emb, links, three_way_w, reranker),
+        ]
+    for label, emb, ls, w, rr in rows:
+        m = eval_retrieval(truth["queries"], chunks, ls, emb, w, reranker=rr)
         miss = f"  漏检: {m.misses}" if m.misses else ""
         print(f"{label:<28}{m.recall:>9.0%}{m.precision:>12.0%}{m.mrr:>8.3f}{miss}")
     if not live:
-        print("（未检测到 DASHSCOPE_API_KEY，真嵌入两行未跑；用 --env-file .env 复跑可补齐）")
+        print("（未检测到 DASHSCOPE_API_KEY，真嵌入与精排行未跑；用 --env-file .env 复跑可补齐）")
 
 
 if __name__ == "__main__":

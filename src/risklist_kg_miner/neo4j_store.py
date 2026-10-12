@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 
+from .extract import AppointmentRecord
 from .graph_model import GraphOp
 
 DEFAULT_URI = "bolt://localhost:7687"
@@ -28,6 +29,15 @@ ORDER BY size(e.date) = 0, date
 CURRENT_STAFF = """\
 MATCH (p:Person)-[r:STAFF]->(o:Org {name: $org})
 RETURN p.name AS person, r.position AS position, r.status AS status, r.note AS note
+"""
+
+NOTICE_SOURCES = "MATCH (n:Notice) RETURN DISTINCT n.source AS source"
+
+LOAD_RECORDS = """\
+MATCH (p:Person)-[:SUBJECT]->(e:Event)<-[:RECORDS]-(n:Notice)
+MATCH (e)-[:AT]->(o:Org)
+RETURN n.source AS source, e.id AS event_id, e.action AS action,
+       p.name AS person, o.name AS org, e.position AS position, e.date AS date
 """
 
 
@@ -54,6 +64,34 @@ class Neo4jStore:
     def query(self, cypher: str, **params) -> list[dict]:
         with self._driver.session() as session:
             return [dict(row) for row in session.run(cypher, **params)]
+
+    def notice_sources(self) -> list[str]:
+        """增量更新用：图内已有哪些公告。"""
+        return [row["source"] for row in self.query(NOTICE_SOURCES)]
+
+    def load_records(self) -> list[AppointmentRecord]:
+        """增量更新的历史事实源：把 :Event 流水读回成记录，参与本次合并。
+
+        事件流水是不可变留痕，读回它就能让"只处理新公告"的增量跑法
+        依然看见全部历史任免——跨公告冲突不因增量而漏检。
+        """
+        out: list[AppointmentRecord] = []
+        for row in self.query(LOAD_RECORDS):
+            eid = row["event_id"]
+            line_no = int(eid.rsplit("#L", 1)[-1]) if "#L" in eid else 0
+            out.append(
+                AppointmentRecord(
+                    action=row["action"],
+                    person=row["person"],
+                    org=row["org"],
+                    position=row["position"],
+                    line_no=line_no,
+                    raw="",
+                    effective_date=row["date"] or None,
+                    source=row["source"],
+                )
+            )
+        return out
 
     def close(self) -> None:
         self._driver.close()

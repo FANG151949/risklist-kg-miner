@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .embed import EmbeddingClient, cosine
+from .rerank import RERANK_POOL, Reranker
 
 DEFAULT_WEIGHTS = {"bm25": 0.4, "vector": 0.4, "graph": 0.2}
 RRF_K = 60
@@ -42,6 +43,7 @@ class SearchReport:
     routes: dict[str, list[tuple[str, float]]] = field(default_factory=dict)
     fused: list[tuple[str, float]] = field(default_factory=list)
     degraded: list[str] = field(default_factory=list)
+    rerank: str = ""  # 非空 = 精排阶段生效（reranker 名字）；空 = 纯 RRF 名次
 
 
 def tokenize(text: str) -> list[str]:
@@ -168,6 +170,7 @@ def search(
     graph_links: list[GraphLink] | None = None,
     weights: dict[str, float] | None = None,
     top_k: int = FUSED_TOP_K,
+    reranker: Reranker | None = None,
 ) -> SearchReport:
     weights = weights or DEFAULT_WEIGHTS
     bm25 = BM25(chunks)
@@ -191,7 +194,22 @@ def search(
 
     report.routes = {r: min_max(pairs) for r, pairs in routes.items()}
     ranked = {r: [cid for cid, _ in pairs] for r, pairs in report.routes.items()}
-    report.fused = weighted_rrf(ranked, weights, top_k=top_k)
+    # v0.8 精排：RRF 先取宽池（top-20），cross-encoder 逐对打分后收回 top-8；
+    # 精排不可用时退回 RRF 名次（软降级），无 reranker 时行为与 v0.7 完全一致。
+    pool_k = RERANK_POOL if reranker is not None else top_k
+    pool = weighted_rrf(ranked, weights, top_k=pool_k)
+    if reranker is None:
+        report.fused = pool
+        return report
+    text_by_id = {c.id: c.text for c in chunks}
+    try:
+        scores = reranker.rerank(query, [text_by_id[cid] for cid, _ in pool])
+        order = sorted(range(len(pool)), key=lambda i: -scores[i])
+        report.fused = [(pool[i][0], scores[i]) for i in order[:top_k]]
+        report.rerank = reranker.name
+    except Exception:
+        report.degraded.append(f"rerank:{reranker.name}")
+        report.fused = pool[:top_k]
     return report
 
 
@@ -216,19 +234,20 @@ RETURN DISTINCT o.name AS entity, n.source AS source
 
 
 def _load_corpus(records_source_dir: Path) -> tuple[list[Chunk], list]:
+    """跟随目录（*.txt / *.html 全收）：新公告放进 samples 即进检索语料。
+    注意评测语料是冻结在标注集上的固定 6 篇（见 evals.load_corpus）。"""
     from .collect import html_to_text
     from .extract import extract_appointments
 
     corpus, records = [], []
-    txt = (records_source_dir / "notice-001.txt").read_text(encoding="utf-8")
-    corpus.append(("notice-001", txt))
-    records += extract_appointments(txt, source="notice-001")
-    for name in ("notice-002", "notice-003", "notice-004", "notice-005", "notice-006"):
-        text = html_to_text(
-            (records_source_dir / f"{name}.html").read_text(encoding="utf-8")
-        )
-        corpus.append((name, text))
-        records += extract_appointments(text, source=name)
+    for path in sorted(records_source_dir.iterdir()):
+        if path.suffix not in {".txt", ".html"}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if path.suffix == ".html":
+            text = html_to_text(text)
+        corpus.append((path.stem, text))
+        records += extract_appointments(text, source=path.stem)
     return build_chunks(corpus), records
 
 
@@ -239,10 +258,13 @@ if __name__ == "__main__":
     chunks, records = _load_corpus(samples)
 
     embedder = HashBigramEmbedding()
+    reranker = None
     if os.environ.get("DASHSCOPE_API_KEY"):
         from .embed import DashScopeEmbedding
+        from .rerank import DashScopeRerank
 
         embedder = DashScopeEmbedding()
+        reranker = DashScopeRerank()
     print(f"语料 {len(chunks)} 块 / {len(records)} 条记录 / 向量路: {embedder.name}")
 
     links: list[GraphLink] | None = None
@@ -263,11 +285,15 @@ if __name__ == "__main__":
 
     text_by_id = {c.id: c.text for c in chunks}
     for q in ("孙丽华的任免情况", "河州市发展和改革委员会的副主任", "疾控中心新任主任是谁"):
-        report = search(q, chunks, embedder=embedder, graph_links=links)
+        report = search(
+            q, chunks, embedder=embedder, graph_links=links, reranker=reranker
+        )
         print(f"\n== 查询: {q} ==")
         for route, pairs in report.routes.items():
             top3 = "  ".join(f"{cid}({s:.2f})" for cid, s in pairs[:3])
             print(f"  [{route}] {top3}")
+        if report.rerank:
+            print(f"  [rerank] {report.rerank}")
         if report.degraded:
             print(f"  软降级: {'、'.join(report.degraded)}")
         for cid, s in report.fused[:5]:

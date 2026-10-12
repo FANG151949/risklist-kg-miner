@@ -447,7 +447,7 @@ wheels = [
 
 [[package]]
 name = "risklist-kg-miner"
-version = "0.1.0"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "neo4j" },
