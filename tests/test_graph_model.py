@@ -2,7 +2,12 @@ from pathlib import Path
 
 from risklist_kg_miner.collect import html_to_text
 from risklist_kg_miner.extract import AppointmentRecord, extract_appointments
-from risklist_kg_miner.graph_model import UPSERT_EVENT, UPSERT_STAFF, build_ops
+from risklist_kg_miner.graph_model import (
+    CLEAN_STALE_STAFF,
+    UPSERT_EVENT,
+    UPSERT_STAFF,
+    build_ops,
+)
 from risklist_kg_miner.validate import MergeStatus, merge
 
 SAMPLES = Path(__file__).parent.parent / "data" / "samples"
@@ -66,12 +71,36 @@ def test_real_samples_end_to_end_counts():
     ops = build_ops(records, results)
     events = [op for op in ops if op.statement is UPSERT_EVENT]
     staff = [op for op in ops if op.statement is UPSERT_STAFF]
+    cleans = [op for op in ops if op.statement is CLEAN_STALE_STAFF]
 
     assert len(events) == 7
     assert len(staff) == 6
+    assert len(cleans) == 6  # 每条结论都先清理别名旧边再写规范边
     chen = [op for op in staff if op.params["person"] == "陈志远"]
     assert len(chen) == 1
     assert chen[0].params["status"] == MergeStatus.CONFLICT
+
+
+def test_staff_ops_clean_stale_alias_edges():
+    # 孙丽华机构归一化（简称->全称）后，旧机构"市卫生健康委员会"上的
+    # STAFF 边必须被清理，否则同人在两个机构各挂一条任职状态。
+    sun_alias = AppointmentRecord(
+        action="免去", person="孙丽华", org="市卫生健康委员会",
+        position="副调研员", line_no=15, raw="", source="notice-001",
+    )
+    sun_full = AppointmentRecord(
+        action="免去", person="孙丽华", org="河州市卫生健康委员会",
+        position="副调研员", line_no=3, raw="", source="notice-003",
+    )
+    ops = build_ops([], merge([sun_alias, sun_full]))
+    cleans = [op for op in ops if op.statement is CLEAN_STALE_STAFF]
+    upserts = [op for op in ops if op.statement is UPSERT_STAFF]
+
+    assert len(upserts) == 1
+    assert upserts[0].params["org"] == "河州市卫生健康委员会"
+    assert len(cleans) == 1
+    assert cleans[0].params["position"] == "副调研员"  # 按职位精确清理，不误伤一人多职
+    assert "other.name <> $org" in cleans[0].statement
 
 
 def test_empty_input_yields_empty_ops():

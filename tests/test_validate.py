@@ -102,3 +102,23 @@ def test_real_samples_chen_conflict_goes_to_review():
     assert results[0].status == MergeStatus.CONFLICT
     assert results[0].record.action == "免去"
     assert results[0].sources == ("notice-001", "notice-006")
+
+
+def test_real_samples_alias_orgs_merge():
+    # v0.5 版式适配后，孙丽华在 notice-001（简称机构）与 notice-003（全称）
+    # 各有一条免去记录：动作一致 + 机构是简称/全称 -> 规则层合并取全称。
+    r1 = extract_appointments(
+        (SAMPLES / "notice-001.txt").read_text(encoding="utf-8"), source="notice-001"
+    )
+    r3 = extract_appointments(
+        html_to_text((SAMPLES / "notice-003.html").read_text(encoding="utf-8")),
+        source="notice-003",
+    )
+    sun = [r for r in r1 + r3 if r.person == "孙丽华"]
+
+    results = merge(sun)
+
+    assert len(results) == 1
+    assert results[0].status == MergeStatus.MERGED
+    assert results[0].record.org == "河州市卫生健康委员会"
+    assert set(results[0].sources) == {"notice-001", "notice-003"}

@@ -33,6 +33,14 @@ MERGE (p)-[r:STAFF]->(o)
 SET r.position = $position, r.status = $status, r.note = $note, r.sources = $sources
 """
 
+# 机构归一化（简称->全称）后，同一人同职位可能还挂着旧机构名的 STAFF 边；
+# MERGE 只保证目标边存在，不会清理多余边，落库前先按职位精确删除旧边。
+CLEAN_STALE_STAFF = """\
+MATCH (p:Person {name: $person})-[old:STAFF {position: $position}]->(other)
+WHERE other.name <> $org
+DELETE old
+"""
+
 
 @dataclass(frozen=True)
 class GraphOp:
@@ -56,25 +64,26 @@ def record_to_op(r: AppointmentRecord) -> GraphOp:
     )
 
 
-def result_to_op(m: MergeResult) -> GraphOp:
+def result_to_ops(m: MergeResult) -> list[GraphOp]:
     r = m.record
-    return GraphOp(
-        UPSERT_STAFF,
-        {
-            "person": r.person,
-            "org": r.org,
-            "position": r.position,
-            "status": m.status,
-            "note": m.note,
-            "sources": list(m.sources),
-        },
-    )
+    params = {
+        "person": r.person,
+        "org": r.org,
+        "position": r.position,
+        "status": m.status,
+        "note": m.note,
+        "sources": list(m.sources),
+    }
+    return [GraphOp(CLEAN_STALE_STAFF, params), GraphOp(UPSERT_STAFF, params)]
 
 
 def build_ops(
     records: list[AppointmentRecord], results: list[MergeResult]
 ) -> list[GraphOp]:
-    return [record_to_op(r) for r in records] + [result_to_op(m) for m in results]
+    ops = [record_to_op(r) for r in records]
+    for m in results:
+        ops += result_to_ops(m)
+    return ops
 
 
 if __name__ == "__main__":

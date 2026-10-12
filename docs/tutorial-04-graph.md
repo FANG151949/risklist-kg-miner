@@ -46,7 +46,8 @@ uv run python -m risklist_kg_miner.neo4j_store
 其他机器上更常见的起法是 Docker：`docker run -d --name risklist-neo4j --rm
 -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:5-community`。
 
-预期输出（已在本机实测）：
+预期输出（已在本机实测；v0.5 版式适配后重跑会落库 36 条操作、节点更多——
+当时点只有 notice-001/002/006 能抽出记录）：
 
 ```
 落库 17 条操作
