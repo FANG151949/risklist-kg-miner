@@ -69,13 +69,45 @@ uv run python -m risklist_kg_miner.neo4j_store
 第三条最有信息量：`[conflict]` 直接写在图上——业务方一眼看到"这个人的
 状态没定，别拿它做拒绝结论"，这正是"宁可漏报不误报"在图里的样子。
 
-两个可以亲手验证的"空结果"（打开 http://localhost:7474 用 Browser 跑）：
+## 步骤 1b：Browser 里亲手跑（查询语句直接粘贴版）
 
-- 查 `河州市卫生健康委员会` 的 STAFF → **空**：孙丽华在 notice-001 里
-  机构写的是简称"市卫生健康委员会"，图里是两个独立 Org 节点。这不是 bug，
-  是 v0.5 机构名归一化要解决的痛点；
-- 再跑一次 `uv run python -m risklist_kg_miner.neo4j_store` → 节点数不变：
-  全 MERGE 幂等落库。
+打开 `http://localhost:7474`（用户名 neo4j，密码 password），把下面四条
+逐条粘进顶部的 Cypher 输入框执行。注意 Browser 里用不了 `$参数`，所以
+参数已写成字面量：
+
+```cypher
+// ① 全图概览：直接看到节点图（Person/Org/Event/Notice 四种颜色）
+MATCH (n)-[r]-(m)
+RETURN n, r, m;
+```
+
+```cypher
+// ② 陈志远任免时间线
+MATCH (p:Person {name: '陈志远'})-[:SUBJECT]->(e)-[:AT]->(o)
+RETURN e.date AS date, e.action AS action, o.name AS org, e.position AS position
+ORDER BY size(e.date) = 0, date;
+```
+
+```cypher
+// ③ 发改委副主任历史（人->事件->机构 两跳）
+MATCH (p:Person)-[:SUBJECT]->(e {position: '副主任'})-[:AT]->(o:Org {name: '河州市发展和改革委员会'})
+RETURN p.name AS person, e.action AS action, e.date AS date
+ORDER BY size(e.date) = 0, date;
+```
+
+```cypher
+// ④ 空结果验证：卫健委 STAFF 应为 0 行——孙丽华机构是简称，
+//    图里"市卫生健康委员会"是另一个独立 Org 节点（v0.5 归一化解决）
+MATCH (p:Person)-[r:STAFF]->(o:Org {name: '河州市卫生健康委员会'})
+RETURN p.name, r.position;
+```
+
+预期：①出节点图；②两行（任命 2026-09-01 + 免去 日期待核）；③两行陈志远；
+④"No changes, no records"（0 行）。
+
+另外验证幂等：再跑一次
+`uv run python -m risklist_kg_miner.neo4j_store`，然后把 ①再执行一遍，
+节点数不变（全 MERGE 落库）。
 
 浏览器打开 `http://localhost:7474`（用户名 neo4j，密码 password），
 把上面查询粘进 Browser 亲手跑一遍，能看到节点图。
