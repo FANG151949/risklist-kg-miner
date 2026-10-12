@@ -16,13 +16,13 @@ DEFAULT_PASSWORD = "password"
 PERSON_TIMELINE = """\
 MATCH (p:Person {name: $person})-[:SUBJECT]->(e)-[:AT]->(o)
 RETURN e.date AS date, e.action AS action, o.name AS org, e.position AS position
-ORDER BY date
+ORDER BY size(e.date) = 0, date
 """
 
 ORG_POSITION_HISTORY = """\
 MATCH (p:Person)-[:SUBJECT]->(e {position: $position})-[:AT]->(o:Org {name: $org})
 RETURN p.name AS person, e.action AS action, e.date AS date
-ORDER BY date
+ORDER BY size(e.date) = 0, date
 """
 
 CURRENT_STAFF = """\

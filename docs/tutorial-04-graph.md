@@ -31,16 +31,22 @@ vlookup；"**现任还是已免**"要人工看公告日期。数据量一上来�
 
 ## 步骤 1：起 Neo4j 并落库
 
+本机 Neo4j 5.26 社区版已装在 `~/tools/neo4j-community-5.26.0`（用系统 Java 17
+直接跑；不用 Docker 是因为本机 Docker Desktop 版本过旧，容器里 JVM 建线程会
+`pthread_create failed (EPERM)`）。
+
 ```bash
-# Docker Desktop 里本地起一个开发实例（密码就是字面量 password，仅本机开发用）
-docker run -d --name risklist-neo4j --rm -p 7474:7474 -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/password neo4j:5-community
+~/tools/neo4j-community-5.26.0/bin/neo4j status   # 查看状态（已在跑会显示 pid）
+~/tools/neo4j-community-5.26.0/bin/neo4j start    # 未运行时启动；stop 停止
 
 # 跑落库 demo：抽取 -> 合并 -> 建图 -> 三个多跳查询
 uv run python -m risklist_kg_miner.neo4j_store
 ```
 
-预期输出：
+其他机器上更常见的起法是 Docker：`docker run -d --name risklist-neo4j --rm
+-p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:5-community`。
+
+预期输出（已在本机实测）：
 
 ```
 落库 17 条操作
@@ -56,6 +62,9 @@ uv run python -m risklist_kg_miner.neo4j_store
 == 河州市发改委当前任职状态（合并结论，conflict 即待人工复核） ==
   陈志远 副主任 [conflict] LLM 不可用，取保守结论，转人工复核
 ```
+
+"日期待核"不是 bug：notice-006 里本来就没写"自 X 起生效"，图里如实留空
+（`ORDER BY size(e.date) = 0, date` 让有日期的排前面）。
 
 第三条最有信息量：`[conflict]` 直接写在图上——业务方一眼看到"这个人的
 状态没定，别拿它做拒绝结论"，这正是"宁可漏报不误报"在图里的样子。
