@@ -1,0 +1,31 @@
+{
+  "_comment": "评测标注集：合成语料的业务真相。records 键为 (source, action, person, org, position)；queries 的 relevant 为相关证据行 chunk id。",
+  "records": [
+    {"source": "notice-001", "action": "任命", "person": "陈志远", "org": "河州市发展和改革委员会", "position": "副主任"},
+    {"source": "notice-001", "action": "任命", "person": "林慧敏", "org": "河州市教育局", "position": "副局长"},
+    {"source": "notice-001", "action": "任命", "person": "赵天宇", "org": "河州市国有资本运营有限公司", "position": "董事长"},
+    {"source": "notice-001", "action": "免去", "person": "王建国", "org": "河州市财政局", "position": "局长"},
+    {"source": "notice-001", "action": "免去", "person": "孙丽华", "org": "市卫生健康委员会", "position": "副调研员"},
+    {"source": "notice-001", "action": "任命", "person": "周晓梅", "org": "河州市交通运输局", "position": "副局长"},
+    {"source": "notice-002", "action": "任命", "person": "罗建军", "org": "江州市商务局", "position": "副局长"},
+    {"source": "notice-002", "action": "任命", "person": "唐雪", "org": "江州市审计局", "position": "总审计师"},
+    {"source": "notice-003", "action": "免去", "person": "孙丽华", "org": "河州市卫生健康委员会", "position": "副调研员"},
+    {"source": "notice-003", "action": "任命", "person": "郑海涛", "org": "河州市疾病预防控制中心", "position": "主任"},
+    {"source": "notice-004", "action": "任命", "person": "周晓梅", "org": "河州市交通运输局", "position": "副局长"},
+    {"source": "notice-004", "action": "免去", "person": "吴国强", "org": "市公路管理局", "position": "局长"},
+    {"source": "notice-005", "action": "免去", "person": "冯建华", "org": "市水利局", "position": "局长"},
+    {"source": "notice-006", "action": "免去", "person": "陈志远", "org": "河州市发展和改革委员会", "position": "副主任"}
+  ],
+  "queries": [
+    {"query": "陈志远的任免情况", "relevant": ["notice-001#L11", "notice-006#L3"]},
+    {"query": "孙丽华被免去了什么职务", "relevant": ["notice-001#L15", "notice-003#L3"]},
+    {"query": "河州市发展和改革委员会的副主任是谁", "relevant": ["notice-001#L11"]},
+    {"query": "疾控中心新任命的主任是谁", "relevant": ["notice-003#L4"]},
+    {"query": "吴国强的免职机构", "relevant": ["notice-004#L3"]},
+    {"query": "冯建华不再担任什么职务", "relevant": ["notice-005#L2"]},
+    {"query": "江州市商务局的人事任命", "relevant": ["notice-002#L5"]},
+    {"query": "周晓梅担任什么职务", "relevant": ["notice-001#L16", "notice-004#L2"]},
+    {"query": "郑海涛的任职情况", "relevant": ["notice-003#L4"]},
+    {"query": "卫健委的人事变动", "relevant": ["notice-001#L15", "notice-003#L3"]}
+  ]
+}
