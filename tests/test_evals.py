@@ -50,18 +50,33 @@ def test_merge_eval_passes_on_corpus():
 
 
 def test_offline_ablation_numbers():
-    # 离线消融基线（哈希向量）：两路 recall 90%（卫健委查询漏检）、
-    # 图谱路不补 recall 但提升 MRR 0.850 -> 0.900。
+    # 离线消融基线（哈希向量）：两路 recall 10/11（卫健委缩略语查询全漏）、
+    # 图谱路不补 recall 但提升 MRR 0.803 -> 0.909（唐雪查询被图谱顶到第1位）。
     truth, chunks, records, links = _setup()
     emb = HashBigramEmbedding()
 
     two = eval_retrieval(truth["queries"], chunks, None, emb, TWO_WAY)
     three = eval_retrieval(truth["queries"], chunks, links, emb, THREE_WAY)
 
-    assert two.recall == 0.9
-    assert three.recall == 0.9
+    assert two.recall == 10 / 11
+    assert three.recall == 10 / 11
     assert two.misses == ("notice-001#L15", "notice-003#L3")  # 唯一漏检：卫健委缩略语查询
     assert three.misses == two.misses  # 图谱实体是全称，问题里是简称 -> 图谱路同样救不了
+    assert three.mrr > two.mrr
+
+
+def test_graph_route_ranks_tangxue_evidence_first():
+    # "唐雪担任什么职务"：实体字面命中 -> 图谱路把证据行顶到第 1 位，
+    # 而两路只能排到第 3。图谱路"提排序不提召回"的第二个实例。
+    truth, chunks, records, links = _setup()
+    tangxue = [q for q in truth["queries"] if q["query"] == "唐雪担任什么职务"]
+    assert len(tangxue) == 1
+    emb = HashBigramEmbedding()
+    two = eval_retrieval(tangxue, chunks, None, emb, TWO_WAY)
+    three = eval_retrieval(tangxue, chunks, links, emb, THREE_WAY)
+
+    assert two.recall == three.recall == 1.0  # 两路也能召回，差距在排序
+    assert three.mrr == 1.0
     assert three.mrr > two.mrr
 
 

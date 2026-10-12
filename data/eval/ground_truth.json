@@ -26,6 +26,7 @@
     {"query": "江州市商务局的人事任命", "relevant": ["notice-002#L5"]},
     {"query": "周晓梅担任什么职务", "relevant": ["notice-001#L16", "notice-004#L2"]},
     {"query": "郑海涛的任职情况", "relevant": ["notice-003#L4"]},
-    {"query": "卫健委的人事变动", "relevant": ["notice-001#L15", "notice-003#L3"]}
+    {"query": "卫健委的人事变动", "relevant": ["notice-001#L15", "notice-003#L3"]},
+    {"query": "唐雪担任什么职务", "relevant": ["notice-002#L6"]}
   ]
 }
